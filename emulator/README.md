@@ -24,9 +24,9 @@ pnpm dev
 1. Open the sender page at `http://localhost:<port>/sender`.
 1. Click the cast button at the top. The receiver page opens in a popup window, and the cast button
    turns green once the session is connected. Allow pop-ups for localhost if Chrome blocks it.
-1. Click once anywhere in the receiver window, so Chrome lets it play media (see
-   [Troubleshooting](#troubleshooting)).
 1. Pick a load request template, or write your own, and click "Send Load Request".
+1. If a "Click to allow media playback" bar shows up in the receiver window, click it once (see
+   [Troubleshooting](#troubleshooting)).
 1. Control playback from the mini controller.
 
 ### Sender Page
@@ -131,8 +131,9 @@ the emulated platform, and the messages to and from the sender. They are also lo
 
 The receiver window opens without a user gesture of its own, so Chrome's
 [autoplay policy](https://developer.chrome.com/blog/autoplay/) may block it from playing media
-with sound. The receiver emulator shows a "Click to allow media playback" bar at the bottom of the
-receiver window: click it (or anywhere in the window) once, then press play on the sender.
+with sound. When that happens, the receiver emulator shows a "Click to allow media playback" bar at
+the bottom of the receiver window. Click it (or anywhere in the window) once, and the emulator
+starts the blocked media again.
 
 To skip this during development, start Chrome with `--autoplay-policy=no-user-gesture-required`.
 

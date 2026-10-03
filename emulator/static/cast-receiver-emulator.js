@@ -716,31 +716,66 @@
 
 	// ----------- Autoplay
 
+	// The receiver window opens without a user gesture of its own, so Chrome's autoplay policy may
+	// block the receiver from playing media with sound. When that happens, we ask for one click on the
+	// receiver window, and then start whatever the receiver tried to play.
+
 	/**
-	 * The receiver window opens without a user gesture of its own, so Chrome's autoplay policy blocks
-	 * the receiver from playing media with sound. Ask for one click on the receiver window to unlock it.
+	 * Media elements whose play() was rejected by the autoplay policy, and that nobody paused since.
+	 * @type {Set<HTMLMediaElement>}
 	 */
+	const blockedMedia = new Set()
+	/** @type {HTMLButtonElement | null} */
+	let activationOverlay = null
+
+	const nativePlay = HTMLMediaElement.prototype.play
+	const nativePause = HTMLMediaElement.prototype.pause
+	HTMLMediaElement.prototype.play = function () {
+		blockedMedia.delete(this)
+		const result = nativePlay.call(this)
+		result?.catch?.((error) => {
+			if (error?.name !== 'NotAllowedError' || !this.paused) return
+			blockedMedia.add(this)
+			requestUserActivation()
+		})
+		return result
+	}
+	HTMLMediaElement.prototype.pause = function () {
+		blockedMedia.delete(this)
+		return nativePause.call(this)
+	}
+
+	/** Play the media that the autoplay policy blocked, now that the window has a user gesture. */
+	const resumeBlockedMedia = () => {
+		for (const media of blockedMedia) {
+			if (media.isConnected && media.paused) {
+				log('resuming media blocked by the autoplay policy')
+				media.play().catch((error) => console.warn(LOG_PREFIX, 'could not resume media', error))
+			}
+		}
+		blockedMedia.clear()
+	}
+
 	const requestUserActivation = () => {
-		if (!navigator.userActivation || navigator.userActivation.hasBeenActive) return
+		if (activationOverlay) return
 		const overlay = document.createElement('button')
 		overlay.type = 'button'
 		overlay.textContent = 'Click to allow media playback in this receiver window'
 		overlay.style.cssText =
 			'position:fixed;inset:auto 0 0 0;z-index:2147483647;padding:12px;border:0;' +
 			'background:rgba(0,0,0,0.8);color:white;font:16px sans-serif;cursor:pointer'
+		// Any click or key press in the window counts as a user gesture, not just one on the overlay.
 		const dismiss = () => {
 			overlay.remove()
+			activationOverlay = null
 			window.removeEventListener('pointerdown', dismiss, true)
 			window.removeEventListener('keydown', dismiss, true)
+			resumeBlockedMedia()
 		}
 		window.addEventListener('pointerdown', dismiss, true)
 		window.addEventListener('keydown', dismiss, true)
 		document.documentElement.append(overlay)
-	}
-	if (document.readyState === 'loading') {
-		document.addEventListener('DOMContentLoaded', requestUserActivation, { once: true })
-	} else {
-		requestUserActivation()
+		activationOverlay = overlay
 	}
 
 	// ----------- Accept sender connections
