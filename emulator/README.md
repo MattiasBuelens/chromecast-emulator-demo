@@ -147,6 +147,9 @@ volume.
 - Only the sender page that opened the receiver window (and that page after a reload) can join
   its session. Other tabs and other browsers can't.
 - Clicking the cast button again while a receiver window is still loading starts a second session.
+  Closing the stale receiver window then also ends the current session.
+- While the receiver window covers the sender window, Chrome considers the sender page hidden and
+  throttles its timers.
 
 ## Resources
 
