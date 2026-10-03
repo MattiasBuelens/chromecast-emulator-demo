@@ -18,7 +18,8 @@
 
 	// The receiver page that the emulator opens for every receiver application ID.
 	const RECEIVER_URL = '/receiver'
-	const CAST_SENDER_SDK_URL = 'https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1'
+	const CAST_SENDER_SDK_URL =
+		'https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1'
 	const SKIP_SECONDS = 10
 
 	const DEFAULT_LOAD_REQUEST = JSON.stringify(DEFAULT_MEDIA, null, 2)
@@ -38,7 +39,9 @@
 	let muted: boolean = $state(false)
 	let mediaInfo: chrome.cast.media.MediaInfo | undefined = $state()
 
-	let metadata = $derived(mediaInfo?.metadata as Partial<chrome.cast.media.GenericMediaMetadata> | undefined)
+	let metadata = $derived(
+		mediaInfo?.metadata as Partial<chrome.cast.media.GenericMediaMetadata> | undefined
+	)
 	let title = $derived(metadata?.title || '')
 	let subtitle = $derived(metadata?.subtitle || '')
 	let images = $derived(metadata?.images || [])
@@ -95,10 +98,14 @@
 	})
 
 	onDestroy(() => {
-		controller?.removeEventListener(cast.framework.RemotePlayerEventType.ANY_CHANGE, syncPlayerState)
+		controller?.removeEventListener(
+			cast.framework.RemotePlayerEventType.ANY_CHANGE,
+			syncPlayerState
+		)
 	})
 
-	const getSession = () => (castReady ? cast.framework.CastContext.getInstance().getCurrentSession() : null)
+	const getSession = () =>
+		castReady ? cast.framework.CastContext.getInstance().getCurrentSession() : null
 
 	/** Build a LoadRequest from a JSON LOAD message, like the ones in the Cast media messages docs. */
 	const createLoadRequest = (json: string) => {
@@ -146,7 +153,8 @@
 	const handleQueueJump = (offset: 1 | -1) => {
 		const media = getSession()?.getMediaSession()
 		if (!media) return
-		const onError = (error: chrome.cast.Error) => (statusMessage = `Queue jump failed: ${error.code}`)
+		const onError = (error: chrome.cast.Error) =>
+			(statusMessage = `Queue jump failed: ${error.code}`)
 		if (offset > 0) media.queueNext(() => {}, onError)
 		else media.queuePrev(() => {}, onError)
 	}

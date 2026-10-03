@@ -47,7 +47,11 @@
 			const appId = url.pathname
 			return appId ? { appIds: [appId], clientId: url.searchParams.get('clientId') || '' } : null
 		}
-		if (/^https?:$/.test(url.protocol) && url.hostname === 'google.com' && url.pathname === '/cast') {
+		if (
+			/^https?:$/.test(url.protocol) &&
+			url.hostname === 'google.com' &&
+			url.pathname === '/cast'
+		) {
 			const params = url.hash
 				.slice(1)
 				.split('/')

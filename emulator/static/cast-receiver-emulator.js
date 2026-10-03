@@ -19,6 +19,9 @@
  *     <script src="/presentation-polyfill.js"></script>
  *     <script src="/cast-receiver-emulator.js"></script>
  *     <script src="//www.gstatic.com/cast/sdk/libs/caf_receiver/v3/cast_receiver_framework.js"></script>
+ *
+ * For debugging, `castReceiverEmulator.trace` holds the most recent IPC and sender messages, and
+ * every message is also logged with console.debug() (shown with the "Verbose" log level).
  */
 ;(function () {
 	'use strict'
@@ -56,7 +59,11 @@
 		'SEEK',
 		'STOP_MEDIA'
 	])
-	const MEDIA_REQUEST_RENAMES = { STOP_MEDIA: 'STOP', MEDIA_SET_VOLUME: 'SET_VOLUME', MEDIA_GET_STATUS: 'GET_STATUS' }
+	const MEDIA_REQUEST_RENAMES = {
+		STOP_MEDIA: 'STOP',
+		MEDIA_SET_VOLUME: 'SET_VOLUME',
+		MEDIA_GET_STATUS: 'GET_STATUS'
+	}
 
 	const log = (...args) => console.debug(LOG_PREFIX, ...args)
 
@@ -145,7 +152,12 @@
 				bufferedAmount: 0
 			}
 			for (const [name, value] of Object.entries(fields)) {
-				Object.defineProperty(this, name, { value, writable: true, enumerable: true, configurable: true })
+				Object.defineProperty(this, name, {
+					value,
+					writable: true,
+					enumerable: true,
+					configurable: true
+				})
 			}
 			setTimeout(() => {
 				if (this.readyState !== NativeWebSocket.CONNECTING) return
@@ -286,7 +298,10 @@
 
 			setTimeout(() => {
 				if (!this.appReady) {
-					console.warn(LOG_PREFIX, 'receiver app did not report its namespaces; announcing the session anyway')
+					console.warn(
+						LOG_PREFIX,
+						'receiver app did not report its namespaces; announcing the session anyway'
+					)
 					this.onAppReady()
 				}
 			}, APP_READY_TIMEOUT_MS)
@@ -343,6 +358,8 @@
 					this.statusText = data.statusText || ''
 					this.broadcastSessionUpdate()
 					break
+				// CAF's CastReceiverContext#stop() just closes the window, which presentation-polyfill.js reports
+				// to the senders. These messages are a fallback for receivers that ask the platform to stop.
 				case 'stopapplication':
 				case 'stop':
 					this.stopSession()
@@ -374,13 +391,15 @@
 				// Every sender gets media status updates; only the one that asked gets the sequence number.
 				for (const client of this.clients.values()) {
 					if (!client.announced) continue
-					const sequenceNumber = pending?.clientId === client.clientId ? pending.sequenceNumber : undefined
+					const sequenceNumber =
+						pending?.clientId === client.clientId ? pending.sequenceNumber : undefined
 					this.sendToClient(client, 'v2_message', data, sequenceNumber)
 				}
 				return
 			}
 			for (const client of this.clientsFor(destination)) {
-				const sequenceNumber = pending?.clientId === client.clientId ? pending.sequenceNumber : undefined
+				const sequenceNumber =
+					pending?.clientId === client.clientId ? pending.sequenceNumber : undefined
 				this.sendToClient(client, 'v2_message', data, sequenceNumber)
 			}
 		},
@@ -408,7 +427,11 @@
 			const url = new URL(connection.url)
 			const cast = window.castSenderEmulator?.parseCastUrl?.(connection.url) || parseCastUrl(url)
 			if (!cast) {
-				console.warn(LOG_PREFIX, 'ignoring connection with a non-Cast presentation URL', connection.url)
+				console.warn(
+					LOG_PREFIX,
+					'ignoring connection with a non-Cast presentation URL',
+					connection.url
+				)
 				return
 			}
 			const { clientId } = cast
@@ -425,7 +448,9 @@
 			if (previous && previous.connection !== connection) previous.connection.close()
 			this.clients.set(clientId, client)
 
-			connection.addEventListener('message', (event) => this.handleClientMessage(client, event.data))
+			connection.addEventListener('message', (event) =>
+				this.handleClientMessage(client, event.data)
+			)
 			connection.addEventListener('close', () => this.removeClient(client))
 			connection.addEventListener('terminate', () => this.removeClient(client))
 
@@ -454,7 +479,8 @@
 		},
 
 		clientsFor(destination) {
-			if (!destination || destination === '*') return [...this.clients.values()].filter((c) => c.announced)
+			if (!destination || destination === '*')
+				return [...this.clients.values()].filter((c) => c.announced)
 			for (const client of this.clients.values()) {
 				if (client.senderId === destination || client.clientId === destination) return [client]
 			}
@@ -527,7 +553,12 @@
 		},
 
 		sendError(client, sequenceNumber, code, description) {
-			this.sendToClient(client, 'error', { code, description: description || null, details: null }, sequenceNumber)
+			this.sendToClient(
+				client,
+				'error',
+				{ code, description: description || null, details: null },
+				sequenceNumber
+			)
 		},
 
 		handleClientMessage(client, raw) {
@@ -552,7 +583,12 @@
 				case 'app_message': {
 					const namespace = body?.namespaceName
 					if (!this.namespaces.includes(namespace)) {
-						this.sendError(client, sequenceNumber, 'invalid_parameter', `Invalid namespace: ${namespace}`)
+						this.sendError(
+							client,
+							sequenceNumber,
+							'invalid_parameter',
+							`Invalid namespace: ${namespace}`
+						)
 						break
 					}
 					this.sendIpc(namespace, client.senderId, body.message)
@@ -606,7 +642,12 @@
 					this.stopSession()
 					break
 				default:
-					this.sendError(client, sequenceNumber, 'invalid_parameter', `Unknown v2 message type: ${type}`)
+					this.sendError(
+						client,
+						sequenceNumber,
+						'invalid_parameter',
+						`Unknown v2 message type: ${type}`
+					)
 			}
 		},
 
@@ -708,7 +749,9 @@
 	if (receiver && window.presentationPolyfill) {
 		receiver.connectionList.then((list) => {
 			list.connections.forEach((connection) => device.addConnection(connection))
-			list.addEventListener('connectionavailable', (event) => device.addConnection(event.connection))
+			list.addEventListener('connectionavailable', (event) =>
+				device.addConnection(event.connection)
+			)
 		})
 	} else {
 		console.info(LOG_PREFIX, 'not opened as a presentation; waiting without a sender')

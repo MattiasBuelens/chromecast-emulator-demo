@@ -138,7 +138,12 @@
 			this[transportKey].terminate()
 		}
 	}
-	defineEventHandlers(PresentationConnection.prototype, ['connect', 'close', 'terminate', 'message'])
+	defineEventHandlers(PresentationConnection.prototype, [
+		'connect',
+		'close',
+		'terminate',
+		'message'
+	])
 
 	const _connected = (connection) => {
 		if (connection.state !== 'connecting') return
@@ -217,7 +222,10 @@
 			if (presentation.receiverReady) return resolve()
 			presentation.onReceiverReady.push(resolve)
 			if (timeoutMs) {
-				setTimeout(() => reject(domException('NotFoundError', 'Receiver did not respond')), timeoutMs)
+				setTimeout(
+					() => reject(domException('NotFoundError', 'Receiver did not respond')),
+					timeoutMs
+				)
 			}
 		})
 
@@ -346,10 +354,17 @@
 			}
 			// Open the window synchronously, so it still counts as part of the user gesture.
 			const presentationId = createPresentationId(selected.url)
-			const win = window.open(selected.pageUrl, WINDOW_NAME_PREFIX + presentationId, WINDOW_FEATURES)
+			const win = window.open(
+				selected.pageUrl,
+				WINDOW_NAME_PREFIX + presentationId,
+				WINDOW_FEATURES
+			)
 			if (!win) {
 				return Promise.reject(
-					domException('NotAllowedError', 'Could not open the presentation window (pop-up blocked?)')
+					domException(
+						'NotAllowedError',
+						'Could not open the presentation window (pop-up blocked?)'
+					)
 				)
 			}
 			const presentation = getOrCreatePresentation(presentationId, selected.url, win)
@@ -379,7 +394,8 @@
 				if (!presentation || presentation.window.closed) return null
 				// Reuse an existing connection to this presentation, as the spec says.
 				for (const connection of presentation.connections.values()) {
-					if (connection.state === 'connecting' || connection.state === 'connected') return connection
+					if (connection.state === 'connecting' || connection.state === 'connected')
+						return connection
 				}
 				return presentation
 			}
@@ -424,7 +440,9 @@
 
 		_fireConnectionAvailable(connection) {
 			setTimeout(() =>
-				this.dispatchEvent(new PresentationConnectionAvailableEvent('connectionavailable', { connection }))
+				this.dispatchEvent(
+					new PresentationConnectionAvailableEvent('connectionavailable', { connection })
+				)
 			)
 		}
 	}
@@ -498,7 +516,9 @@
 					_connected(connection)
 					post(controller, 'connected', { connectionId })
 					receiver._resolveList(list)
-					list.dispatchEvent(new PresentationConnectionAvailableEvent('connectionavailable', { connection }))
+					list.dispatchEvent(
+						new PresentationConnectionAvailableEvent('connectionavailable', { connection })
+					)
 					break
 				}
 				case 'message': {

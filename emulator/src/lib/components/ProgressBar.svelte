@@ -25,9 +25,7 @@
 	const handleInteraction = (state: boolean) => (_: any) => (isInteracting = state)
 </script>
 
-<svelte:window
-	onmouseup={() => (isInteracting = false)}
-/>
+<svelte:window onmouseup={() => (isInteracting = false)} />
 <div class="progress-bar">
 	<input
 		type="range"
