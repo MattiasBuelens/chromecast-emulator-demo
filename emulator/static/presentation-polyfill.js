@@ -181,7 +181,7 @@
 
 	/**
 	 * Presentations started (or rediscovered) by this page, by presentation ID.
-	 * @type {Map<string, {id: string, url: string, window: Window, connections: Map<string, PresentationConnection>, receiverReady: boolean, onReceiverReady: Array<() => void>}>}
+	 * @type {Map<string, {id: string, url: string, window: Window, connections: Map<string, PresentationConnection>, receiverReady: boolean, onReceiverReady: Array<{resolve: () => void, reject: (error: Error) => void}>}>}
 	 */
 	const presentations = new Map()
 
@@ -213,6 +213,12 @@
 
 	const terminatePresentation = (presentation) => {
 		presentations.delete(presentation.id)
+		// The window closed before the receiver was ready, e.g. because the user closed it.
+		presentation.onReceiverReady
+			.splice(0)
+			.forEach(({ reject }) =>
+				reject(domException('NotAllowedError', 'The presentation window was closed'))
+			)
 		for (const connection of presentation.connections.values()) _terminated(connection)
 		presentation.connections.clear()
 	}
@@ -220,7 +226,7 @@
 	const whenReceiverReady = (presentation, timeoutMs) =>
 		new Promise((resolve, reject) => {
 			if (presentation.receiverReady) return resolve()
-			presentation.onReceiverReady.push(resolve)
+			presentation.onReceiverReady.push({ resolve, reject })
 			if (timeoutMs) {
 				setTimeout(
 					() => reject(domException('NotFoundError', 'Receiver did not respond')),
@@ -276,7 +282,7 @@
 			if (presentation.window !== event.source) return
 			if (!presentation.receiverReady) {
 				presentation.receiverReady = true
-				presentation.onReceiverReady.splice(0).forEach((resolve) => resolve())
+				presentation.onReceiverReady.splice(0).forEach(({ resolve }) => resolve())
 			}
 			return
 		}
@@ -323,6 +329,8 @@
 	defineEventHandlers(PresentationAvailability.prototype, ['change'])
 
 	const availabilityKey = Symbol('availability')
+	// Like the spec says, only one start() may be in progress at a time, across all requests.
+	let startInProgress = false
 
 	class PresentationRequest extends EventTarget {
 		constructor(urls) {
@@ -348,6 +356,11 @@
 		}
 
 		start() {
+			if (startInProgress) {
+				return Promise.reject(
+					domException('OperationError', 'Another presentation is already being started')
+				)
+			}
 			const selected = this._selectUrl()
 			if (!selected) {
 				return Promise.reject(domException('NotFoundError', 'No available presentation display'))
@@ -368,11 +381,14 @@
 				)
 			}
 			const presentation = getOrCreatePresentation(presentationId, selected.url, win)
-			return whenReceiverReady(presentation).then(() => {
-				const connection = connectToPresentation(presentation, selected.url, { reconnect: false })
-				this._fireConnectionAvailable(connection)
-				return connection
-			})
+			startInProgress = true
+			return whenReceiverReady(presentation)
+				.then(() => {
+					const connection = connectToPresentation(presentation, selected.url, { reconnect: false })
+					this._fireConnectionAvailable(connection)
+					return connection
+				})
+				.finally(() => (startInProgress = false))
 		}
 
 		reconnect(requestedId) {
