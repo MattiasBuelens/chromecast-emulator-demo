@@ -3,15 +3,18 @@
 	"version": "0.0.1",
 	"type": "module",
 	"scripts": {
-		"emulator:dev": "vite dev"
+		"emulator:dev": "vite dev",
+		"test:e2e": "playwright test"
 	},
 	"devDependencies": {
+		"@playwright/test": "1.56.1",
 		"@sveltejs/adapter-auto": "^3.0.0",
 		"@sveltejs/kit": "^2.0.0",
 		"@sveltejs/vite-plugin-svelte": "^4.0.0",
 		"@types/chromecast-caf-receiver": "^6.0.17",
 		"@types/chromecast-caf-sender": "^1.0.11",
 		"@types/eslint": "^9.6.0",
+		"@types/node": "^22.0.0",
 		"eslint": "^9.7.0",
 		"eslint-config-prettier": "^9.1.0",
 		"eslint-plugin-svelte": "^2.36.0",

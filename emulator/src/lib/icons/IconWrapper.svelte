@@ -1,12 +1,14 @@
 <script lang="ts">
 	type IconWrapperProps = {
 		onClicked?: () => void
+		/** The button's accessible name, since it only shows an icon. */
+		label?: string
 		children: any
 	}
-	let { children, onClicked }: IconWrapperProps = $props()
+	let { children, onClicked, label }: IconWrapperProps = $props()
 </script>
 
-<button onclick={() => onClicked?.()}>
+<button onclick={() => onClicked?.()} aria-label={label} title={label}>
 	{@render children()}
 </button>
 

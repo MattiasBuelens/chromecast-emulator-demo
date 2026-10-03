@@ -189,7 +189,7 @@
 		<google-cast-launcher></google-cast-launcher>
 	</div>
 	<div>
-		<IconWrapper onClicked={handleMediaLoad}><ReelIcon /></IconWrapper>
+		<IconWrapper label="Send Load Request" onClicked={handleMediaLoad}><ReelIcon /></IconWrapper>
 		<div>Send Load Request</div>
 	</div>
 </header>
@@ -207,24 +207,27 @@
 
 	<div class="controls">
 		<div class="playback">
-			<IconWrapper onClicked={() => handlePlayPause(true)}><PlayIcon /></IconWrapper>
-			<IconWrapper onClicked={() => handlePlayPause(false)}><PauseIcon /></IconWrapper>
-			<IconWrapper onClicked={handleStop}><StopIcon /></IconWrapper>
-			<IconWrapper onClicked={() => handleQueueJump(-1)}><PrevIcon /></IconWrapper>
-			<IconWrapper onClicked={() => handleQueueJump(1)}><NextIcon /></IconWrapper>
+			<IconWrapper label="Play" onClicked={() => handlePlayPause(true)}><PlayIcon /></IconWrapper>
+			<IconWrapper label="Pause" onClicked={() => handlePlayPause(false)}><PauseIcon /></IconWrapper
+			>
+			<IconWrapper label="Stop" onClicked={handleStop}><StopIcon /></IconWrapper>
+			<IconWrapper label="Previous" onClicked={() => handleQueueJump(-1)}><PrevIcon /></IconWrapper>
+			<IconWrapper label="Next" onClicked={() => handleQueueJump(1)}><NextIcon /></IconWrapper>
 		</div>
 
 		<div class="seek">
-			<IconWrapper onClicked={() => handleSeek(currentTime - SKIP_SECONDS)}
-				><SeekBack10Icon /></IconWrapper
+			<IconWrapper
+				label="Skip back 10 seconds"
+				onClicked={() => handleSeek(currentTime - SKIP_SECONDS)}><SeekBack10Icon /></IconWrapper
 			>
-			<IconWrapper onClicked={() => handleSeek(currentTime + SKIP_SECONDS)}
-				><SeekForward10Icon /></IconWrapper
+			<IconWrapper
+				label="Skip forward 10 seconds"
+				onClicked={() => handleSeek(currentTime + SKIP_SECONDS)}><SeekForward10Icon /></IconWrapper
 			>
 		</div>
 
 		<div class="sound">
-			<IconWrapper onClicked={handleMute}>
+			<IconWrapper label={muted ? 'Unmute' : 'Mute'} onClicked={handleMute}>
 				{#if muted}
 					<MuteIcon />
 				{:else}

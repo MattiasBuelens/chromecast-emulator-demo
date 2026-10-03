@@ -125,6 +125,29 @@ In the receiver window, `castReceiverEmulator.trace` holds the latest IPC messag
 the emulated platform, and the messages to and from the sender. They are also logged with
 `console.debug()` (enable the "Verbose" log level in DevTools).
 
+## End-to-end Tests
+
+[`tests/cast.test.ts`](./tests/cast.test.ts) drives the sender and the receiver together with
+[Playwright](https://playwright.dev/): it opens the sender page, clicks the cast button, picks up
+the receiver popup with `page.waitForEvent('popup')`, sends a load request and pauses from the
+sender, and checks the result on both sides (the receiver's `<video>`, and the sender SDK's media
+session). Both pages use the real Cast SDKs, so the tests need access to `www.gstatic.com`. The
+media comes from [`tests/fixtures`](./tests/fixtures), served with `context.route()`.
+
+```bash
+pnpm exec playwright install chromium  # once
+pnpm test:e2e
+```
+
+Playwright starts the dev server on port 4173 and launches Chromium with
+`--autoplay-policy=no-user-gesture-required`, so the receiver plays without a click. Set
+`CHROMIUM_PATH` to use a Chromium that is already installed, and `CHROMIUM_ARGS` to pass extra
+command line flags.
+
+To test your own sender or receiver, write tests the same way: `page` is your sender, and the
+popup is your receiver. Use `context.route()` rather than `page.route()`, so it also covers the
+popup.
+
 ## Troubleshooting
 
 ### Video loads on the receiver, but does not play
