@@ -2,9 +2,9 @@
 	type ProgressBarProps = {
 		currentTime: number
 		duration?: number
-		handleTimeUpdate: any
+		handleTimeUpdate: (time: number) => void
 	}
-	let { currentTime = $bindable(), duration = 0, handleTimeUpdate }: ProgressBarProps = $props()
+	let { currentTime, duration = 0, handleTimeUpdate }: ProgressBarProps = $props()
 	let preferredTime = $state(0)
 	let isInteracting = $state(false)
 
@@ -26,11 +26,7 @@
 </script>
 
 <svelte:window
-	onmouseup={() => {
-		if (!isInteracting) return
-		isInteracting = false
-		currentTime = preferredTime
-	}}
+	onmouseup={() => (isInteracting = false)}
 />
 <div class="progress-bar">
 	<input
@@ -38,7 +34,7 @@
 		min="0"
 		max={duration}
 		bind:value={preferredTime}
-		onchange={handleTimeUpdate}
+		onchange={() => handleTimeUpdate(preferredTime)}
 		onmousedown={handleInteraction(true)}
 	/>
 	<div class="timestamps">

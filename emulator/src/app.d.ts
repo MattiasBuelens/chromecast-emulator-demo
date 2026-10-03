@@ -1,5 +1,3 @@
-import type { cast as CastType } from 'chromecast-caf-receiver'
-
 // See https://svelte.dev/docs/kit/types#app.d.ts
 // for information about these interfaces
 declare global {
@@ -11,11 +9,8 @@ declare global {
 		// interface Platform {}
 	}
 
-	var cast: CastType;
-
-	interface Window {
-		cast: CastType
-	}
+	// The global `cast` namespace is declared by @types/chromecast-caf-sender.
+	// The receiver page gets its types from @types/chromecast-caf-receiver instead, see receiverCast.
 }
 
-export { };
+export {}

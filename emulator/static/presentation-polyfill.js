@@ -67,6 +67,17 @@
 	}
 
 	const urlResolvers = []
+	const idGenerators = []
+	const reconnectResolvers = []
+
+	/** Pick the ID for a new presentation of the given presentation URL. */
+	const createPresentationId = (presentationUrl) => {
+		for (const generator of idGenerators) {
+			const id = generator(presentationUrl)
+			if (id) return id
+		}
+		return randomId()
+	}
 
 	/** Map a presentation URL to the URL of the page to open, or null if unsupported. */
 	const resolvePageUrl = (presentationUrl) => {
@@ -334,7 +345,7 @@
 				return Promise.reject(domException('NotFoundError', 'No available presentation display'))
 			}
 			// Open the window synchronously, so it still counts as part of the user gesture.
-			const presentationId = randomId()
+			const presentationId = createPresentationId(selected.url)
 			const win = window.open(selected.pageUrl, WINDOW_NAME_PREFIX + presentationId, WINDOW_FEATURES)
 			if (!win) {
 				return Promise.reject(
@@ -349,7 +360,20 @@
 			})
 		}
 
-		reconnect(presentationId) {
+		reconnect(requestedId) {
+			// Map special presentation IDs (like the Cast SDK's "auto-join") to a known presentation.
+			const resolveId = () => {
+				if (presentations.has(requestedId)) return requestedId
+				const known = [...presentations.values()]
+					.filter((p) => !p.window.closed)
+					.map(({ id, url }) => ({ id, url }))
+				for (const resolver of reconnectResolvers) {
+					const id = resolver(requestedId, this.urls, known)
+					if (id && presentations.has(id)) return id
+				}
+				return requestedId
+			}
+			let presentationId = resolveId()
 			const live = () => {
 				const presentation = presentations.get(presentationId)
 				if (!presentation || presentation.window.closed) return null
@@ -368,6 +392,7 @@
 						// After a reload, we only learn about the receiver from its next heartbeat.
 						const started = Date.now()
 						const poll = setInterval(() => {
+							presentationId = resolveId()
 							if (presentations.has(presentationId)) {
 								clearInterval(poll)
 								resolve()
@@ -546,6 +571,22 @@
 		 */
 		addUrlResolver(resolver) {
 			urlResolvers.push(resolver)
+		},
+		/**
+		 * Register a function that picks the ID for a new presentation of a presentation URL,
+		 * or returns null to leave it to the next one (or a random ID).
+		 * @param {(presentationUrl: string) => string | null} generator
+		 */
+		addPresentationIdGenerator(generator) {
+			idGenerators.push(generator)
+		},
+		/**
+		 * Register a function that maps the ID passed to `PresentationRequest#reconnect()` to the ID
+		 * of a known presentation, or returns null when it does not handle that ID.
+		 * @param {(requestedId: string, requestUrls: string[], known: Array<{id: string, url: string | null}>) => string | null} resolver
+		 */
+		addReconnectResolver(resolver) {
+			reconnectResolvers.push(resolver)
 		},
 		isReceivingWindow,
 		nativePresentation: NativePresentation

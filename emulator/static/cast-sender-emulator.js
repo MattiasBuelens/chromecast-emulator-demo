@@ -74,6 +74,28 @@
 		return null
 	})
 
+	// Like Chrome, name Cast presentations after their Cast session: "cast-session_<sessionId>".
+	// The receiver emulator uses the rest of the presentation ID as the session ID.
+	const SESSION_ID_PREFIX = 'cast-session_'
+	// The Cast SDK calls PresentationRequest#reconnect() with this ID to join an existing session.
+	const AUTO_JOIN_ID = 'auto-join'
+
+	window.presentationPolyfill.addPresentationIdGenerator((presentationUrl) =>
+		parseCastUrl(presentationUrl) ? SESSION_ID_PREFIX + crypto.randomUUID() : null
+	)
+
+	window.presentationPolyfill.addReconnectResolver((requestedId, requestUrls, known) => {
+		if (requestedId !== AUTO_JOIN_ID) return null
+		// Join the most recent session of an app this sender asks for. We only know about receiver
+		// windows opened from this origin, so this works like the "origin_scoped" auto join policy.
+		const appIds = new Set(requestUrls.flatMap((url) => parseCastUrl(url)?.appIds || []))
+		const session = known
+			.filter(({ id, url }) => id.startsWith(SESSION_ID_PREFIX) && url)
+			.reverse()
+			.find(({ url }) => parseCastUrl(url)?.appIds.some((appId) => appIds.has(appId)))
+		return session?.id || null
+	})
+
 	// cast_sender.js only uses the Presentation API when it detects Chrome.
 	window.chrome = window.chrome || {}
 

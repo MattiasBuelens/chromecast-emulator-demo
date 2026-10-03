@@ -30,6 +30,7 @@
 	const MEDIA_NAMESPACE = 'urn:x-cast:com.google.cast.media'
 	const SYSTEM_SENDER_ID = 'SystemSender'
 	const RESERVED_NAMESPACE_PREFIX = 'urn:x-cast:com.google.cast.'
+	const SESSION_ID_PREFIX = 'cast-session_'
 
 	const RECEIVER_FRIENDLY_NAME = 'Chromecast Emulator'
 	const RECEIVER_LABEL = 'Q2hyb21lY2FzdEVtdWxhdG9y' // any stable base64url string will do
@@ -58,6 +59,15 @@
 	const MEDIA_REQUEST_RENAMES = { STOP_MEDIA: 'STOP', MEDIA_SET_VOLUME: 'SET_VOLUME', MEDIA_GET_STATUS: 'GET_STATUS' }
 
 	const log = (...args) => console.debug(LOG_PREFIX, ...args)
+
+	// The most recent messages in each direction, for debugging: castReceiverEmulator.trace
+	const TRACE_LIMIT = 500
+	const trace = []
+	const traceMessage = (direction, message) => {
+		trace.push({ time: Date.now(), direction, message })
+		if (trace.length > TRACE_LIMIT) trace.shift()
+		log(direction, message)
+	}
 
 	const randomId = () =>
 		typeof crypto !== 'undefined' && crypto.randomUUID
@@ -125,12 +135,18 @@
 	class CastIpcSocket extends EventTarget {
 		constructor(url) {
 			super()
-			this.url = String(url)
-			this.readyState = NativeWebSocket.CONNECTING
-			this.protocol = ''
-			this.extensions = ''
-			this.binaryType = 'blob'
-			this.bufferedAmount = 0
+			// Own data properties, because the ones inherited from WebSocket.prototype are getter-only.
+			const fields = {
+				url: String(url),
+				readyState: NativeWebSocket.CONNECTING,
+				protocol: '',
+				extensions: '',
+				binaryType: 'blob',
+				bufferedAmount: 0
+			}
+			for (const [name, value] of Object.entries(fields)) {
+				Object.defineProperty(this, name, { value, writable: true, enumerable: true, configurable: true })
+			}
 			setTimeout(() => {
 				if (this.readyState !== NativeWebSocket.CONNECTING) return
 				this.readyState = NativeWebSocket.OPEN
@@ -161,6 +177,7 @@
 		/** Deliver a message from the platform to the receiver SDK. */
 		_deliver(text) {
 			if (this.readyState !== NativeWebSocket.OPEN) return
+			traceMessage('platform -> receiver', text)
 			this.dispatchEvent(new MessageEvent('message', { data: text }))
 		}
 	}
@@ -277,6 +294,7 @@
 
 		/** A message from the receiver SDK to the platform or to a sender. */
 		handleIpcMessage(text) {
+			traceMessage('receiver -> platform', text)
 			let message
 			try {
 				message = JSON.parse(text)
@@ -340,7 +358,19 @@
 			if (pending) this.pendingRequests.delete(data.requestId)
 
 			if (data.type === 'MEDIA_STATUS') {
+				// Like Chrome, tag each media status with the session ID; the sender SDK needs it to find the session.
+				// Chrome also turns the supportedMediaCommands bit mask into the list of names the sender SDK expects.
+				if (Array.isArray(data.status)) {
+					for (const status of data.status) {
+						status.sessionId = this.sessionId
+						if (typeof status.supportedMediaCommands === 'number') {
+							status.supportedMediaCommands = mediaCommandsToList(status.supportedMediaCommands)
+						}
+					}
+				}
 				this.lastMediaStatus = data.status || null
+				// The receiver may have created a new media element.
+				this.applyDeviceVolume()
 				// Every sender gets media status updates; only the one that asked gets the sequence number.
 				for (const client of this.clients.values()) {
 					if (!client.announced) continue
@@ -352,6 +382,17 @@
 			for (const client of this.clientsFor(destination)) {
 				const sequenceNumber = pending?.clientId === client.clientId ? pending.sequenceNumber : undefined
 				this.sendToClient(client, 'v2_message', data, sequenceNumber)
+			}
+		},
+
+		/**
+		 * A real device applies its volume to the audio output, outside the page. We emulate that by
+		 * setting it on the receiver's media elements, which overrides the receiver's own stream volume.
+		 */
+		applyDeviceVolume() {
+			for (const media of findMediaElements(document)) {
+				if (media.volume !== this.volume.level) media.volume = this.volume.level
+				if (media.muted !== this.volume.muted) media.muted = this.volume.muted
 			}
 		},
 
@@ -390,6 +431,10 @@
 
 			if (!this.appId) {
 				this.appId = cast.appIds[0]
+				// The sender emulator names the presentation after the session, so senders can rejoin it by ID.
+				if (connection.id?.startsWith(SESSION_ID_PREFIX)) {
+					this.sessionId = connection.id.slice(SESSION_ID_PREFIX.length)
+				}
 				this.launchingSenderId = client.senderId
 				this.maybeSendPlatformReady()
 			}
@@ -477,6 +522,7 @@
 			if (sequenceNumber !== undefined) payload.sequenceNumber = sequenceNumber
 			payload.timeoutMillis = 0
 			payload.clientId = client.clientId
+			traceMessage('emulator -> sender', payload)
 			client.connection.send(JSON.stringify(payload))
 		},
 
@@ -485,6 +531,7 @@
 		},
 
 		handleClientMessage(client, raw) {
+			traceMessage('sender -> emulator', raw)
 			let message
 			try {
 				message = JSON.parse(raw)
@@ -544,6 +591,7 @@
 					const { level, muted } = body.volume || {}
 					if (typeof level === 'number') this.volume.level = Math.min(1, Math.max(0, level))
 					if (typeof muted === 'boolean') this.volume.muted = muted
+					this.applyDeviceVolume()
 					this.sendIpc(SYSTEM_NAMESPACE, SYSTEM_SENDER_ID, {
 						type: 'volumechanged',
 						level: this.volume.level,
@@ -592,6 +640,27 @@
 		return { appIds: [decodeURIComponent(match[1])], clientId: decodeURIComponent(clientId) }
 	}
 
+	// The media commands Chrome reports to the sender SDK, by their bit in CAF's supportedMediaCommands.
+	const MEDIA_COMMAND_NAMES = [
+		[1 << 0, 'pause'],
+		[1 << 1, 'seek'],
+		[1 << 2, 'stream_volume'],
+		[1 << 3, 'stream_mute'],
+		[1 << 6, 'queue_next'],
+		[1 << 7, 'queue_prev']
+	]
+	const mediaCommandsToList = (mask) =>
+		MEDIA_COMMAND_NAMES.filter(([bit]) => mask & bit).map(([, name]) => name)
+
+	/** All audio and video elements in a document, including inside open shadow roots like <cast-media-player>. */
+	const findMediaElements = (root) => {
+		const found = [...root.querySelectorAll('audio, video')]
+		for (const element of root.querySelectorAll('*')) {
+			if (element.shadowRoot) found.push(...findMediaElements(element.shadowRoot))
+		}
+		return found
+	}
+
 	/** Chrome strips null fields from sender messages before handling them. */
 	const removeNullFields = (value) => {
 		if (Array.isArray(value)) {
@@ -602,6 +671,35 @@
 				else removeNullFields(value[key])
 			}
 		}
+	}
+
+	// ----------- Autoplay
+
+	/**
+	 * The receiver window opens without a user gesture of its own, so Chrome's autoplay policy blocks
+	 * the receiver from playing media with sound. Ask for one click on the receiver window to unlock it.
+	 */
+	const requestUserActivation = () => {
+		if (!navigator.userActivation || navigator.userActivation.hasBeenActive) return
+		const overlay = document.createElement('button')
+		overlay.type = 'button'
+		overlay.textContent = 'Click to allow media playback in this receiver window'
+		overlay.style.cssText =
+			'position:fixed;inset:auto 0 0 0;z-index:2147483647;padding:12px;border:0;' +
+			'background:rgba(0,0,0,0.8);color:white;font:16px sans-serif;cursor:pointer'
+		const dismiss = () => {
+			overlay.remove()
+			window.removeEventListener('pointerdown', dismiss, true)
+			window.removeEventListener('keydown', dismiss, true)
+		}
+		window.addEventListener('pointerdown', dismiss, true)
+		window.addEventListener('keydown', dismiss, true)
+		document.documentElement.append(overlay)
+	}
+	if (document.readyState === 'loading') {
+		document.addEventListener('DOMContentLoaded', requestUserActivation, { once: true })
+	} else {
+		requestUserActivation()
 	}
 
 	// ----------- Accept sender connections
@@ -616,5 +714,5 @@
 		console.info(LOG_PREFIX, 'not opened as a presentation; waiting without a sender')
 	}
 
-	window.castReceiverEmulator = { device }
+	window.castReceiverEmulator = { device, trace }
 })()
