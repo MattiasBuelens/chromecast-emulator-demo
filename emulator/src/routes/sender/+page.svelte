@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { browser } from '$app/environment'
 	import LoadRequestInput from '$lib/components/LoadRequestInput.svelte'
 	import ProgressBar from '$lib/components/ProgressBar.svelte'
 	import { DEFAULT_MEDIA, DEFAULT_QUEUED_MEDIA, TemplateLoadRequestEnum } from '$lib/constants'
@@ -14,110 +13,158 @@
 	import SeekForward10Icon from '$lib/icons/SeekForward10Icon.svelte'
 	import SoundIcon from '$lib/icons/SoundIcon.svelte'
 	import StopIcon from '$lib/icons/StopIcon.svelte'
-	import WobblyCastIcon from '$lib/icons/WobblyCastIcon.svelte'
-	import {
-		messageConnected,
-		messageJumpItem,
-		messageMediaLoad,
-		messageMute,
-		messagePause,
-		messagePlay,
-		messageReady,
-		messageSeek,
-		messageSkipBack,
-		messageSkipForward,
-		messageStop,
-		messageVolume
-	} from '$lib/messages'
-	import sendMessage from '$lib/sendMessage'
-	import { mediaSessionId } from '$lib/store'
-	import type {
-		GenericMediaMetadata,
-		MediaInformation
-	} from 'chromecast-caf-receiver/cast.framework.messages'
-	import { onDestroy, tick } from 'svelte'
+	import { loadScripts } from '$lib/loadScript'
+	import { onDestroy, onMount } from 'svelte'
 
-	const CAST_WEBSOCKET_URL: string = 'ws://localhost:8008/v2/ipc'
+	// The receiver page that the emulator opens for every receiver application ID.
+	const RECEIVER_URL = '/receiver'
+	const CAST_SENDER_SDK_URL =
+		'https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1'
+	const SKIP_SECONDS = 10
 
 	const DEFAULT_LOAD_REQUEST = JSON.stringify(DEFAULT_MEDIA, null, 2)
 
-	let ws: WebSocket | null = $state(null)
-	let volume: number = $state(50)
-	let muted: boolean = $state(false)
-	let isConnected: boolean = $state(false)
-	let currentTime: number = $state(0)
 	let templateLoadRequest = $state(TemplateLoadRequestEnum.BASIC)
 	let loadRequest: string = $state(DEFAULT_LOAD_REQUEST)
+	let statusMessage: string = $state('')
 
-	type GenericMediaInformation = MediaInformation & { metadata: GenericMediaMetadata }
-	// @ts-ignore
-	let currentMediaInfo: GenericMediaInformation = $state()
-	let { title = '', subtitle = '', images = [] } = $derived(currentMediaInfo?.metadata || {})
-	let { duration } = $derived(currentMediaInfo || { duration: 0 })
+	// A snapshot of the RemotePlayer's state. The SDK mutates the RemotePlayer itself, which Svelte can't track.
+	let castReady: boolean = $state(false)
+	let isConnected: boolean = $state(false)
+	let deviceName: string = $state('')
+	let isPaused: boolean = $state(true)
+	let currentTime: number = $state(0)
+	let duration: number = $state(0)
+	let volume: number = $state(100)
+	let muted: boolean = $state(false)
+	let mediaInfo: chrome.cast.media.MediaInfo | undefined = $state()
 
-	// ----------- Assign the WebSocket once we have the browser environment ready
-	$effect(() => {
-		if (browser && !ws) {
-			ws = new WebSocket(CAST_WEBSOCKET_URL)
+	let metadata = $derived(
+		mediaInfo?.metadata as Partial<chrome.cast.media.GenericMediaMetadata> | undefined
+	)
+	let title = $derived(metadata?.title || '')
+	let subtitle = $derived(metadata?.subtitle || '')
+	let images = $derived(metadata?.images || [])
 
-			ws.addEventListener('open', () =>
-				sendMessage(ws, { message: 'Sender is connected! ' + navigator.userAgent, sender: true })
-			)
+	let player: cast.framework.RemotePlayer | null = null
+	let controller: cast.framework.RemotePlayerController | null = null
 
-			ws.addEventListener('message', (msg) => {
-				const data = JSON.parse(msg.data)
+	const syncPlayerState = () => {
+		if (!player) return
+		isConnected = player.isConnected
+		isPaused = player.isPaused
+		currentTime = player.currentTime
+		duration = player.duration
+		volume = Math.round(player.volumeLevel * 100)
+		muted = player.isMuted
+		mediaInfo = player.mediaInfo
+		deviceName = getSession()?.getCastDevice().friendlyName || ''
+	}
 
-				const { type } = data || {}
+	const initializeCast = () => {
+		const context = cast.framework.CastContext.getInstance()
+		context.setOptions({
+			receiverApplicationId: chrome.cast.media.DEFAULT_MEDIA_RECEIVER_APP_ID,
+			autoJoinPolicy: chrome.cast.AutoJoinPolicy.ORIGIN_SCOPED
+		})
+		context.addEventListener(cast.framework.CastContextEventType.SESSION_STATE_CHANGED, (event) => {
+			console.log('[sender] session state', event.sessionState)
+			syncPlayerState()
+		})
 
-				// tell us if we are connected!
-				if (
-					data.namespace === 'urn:x-cast:com.google.cast.system' &&
-					data.data.includes('senderconnected')
-				) {
-					isConnected = true
-				}
+		player = new cast.framework.RemotePlayer()
+		controller = new cast.framework.RemotePlayerController(player)
+		controller.addEventListener(cast.framework.RemotePlayerEventType.ANY_CHANGE, syncPlayerState)
+		castReady = true
+		syncPlayerState()
+	}
 
-				if (type === 'MEDIA_STATUS') {
-					// update the media info if it has changed
-					const updatedMediaStatus = data.status?.[0]
-					const updatedMediaInfo = updatedMediaStatus?.media
-					if (updatedMediaInfo) {
-						currentMediaInfo = updatedMediaInfo
-					}
-
-					// update the media session id if it has changed
-					const sessionId = updatedMediaStatus?.mediaSessionId
-					if (sessionId && sessionId !== $mediaSessionId) mediaSessionId.set(sessionId)
-
-					if (updatedMediaStatus.currentTime) currentTime = updatedMediaStatus.currentTime
-				}
-			})
+	onMount(async () => {
+		if (window.cast?.framework) {
+			// The SDK is still loaded from a previous visit to this page.
+			initializeCast()
+			return
 		}
+		window.__onGCastApiAvailable = (isAvailable) => {
+			if (isAvailable) initializeCast()
+			else statusMessage = 'The Cast SDK is not available in this browser.'
+		}
+		// The emulator scripts must run before the Cast SDK, so it picks up the Presentation API polyfill.
+		await loadScripts([
+			'/presentation-polyfill.js',
+			['/cast-sender-emulator.js', { receiverUrl: RECEIVER_URL }],
+			CAST_SENDER_SDK_URL
+		])
 	})
 
-	const handleSenderWarmup = async () => {
-		sendMessage(ws, messageReady())
-		await tick()
-		sendMessage(ws, messageConnected())
+	onDestroy(() => {
+		controller?.removeEventListener(
+			cast.framework.RemotePlayerEventType.ANY_CHANGE,
+			syncPlayerState
+		)
+	})
+
+	const getSession = () =>
+		castReady ? cast.framework.CastContext.getInstance().getCurrentSession() : null
+
+	/** Build a LoadRequest from a JSON LOAD message, like the ones in the Cast media messages docs. */
+	const createLoadRequest = (json: string) => {
+		const { type: _type, requestId: _requestId, media, ...options } = JSON.parse(json)
+		if (!media) throw new Error('The load request needs a "media" field')
+		const info = Object.assign(
+			new chrome.cast.media.MediaInfo(media.contentId ?? media.contentUrl, media.contentType),
+			media
+		)
+		const request = new chrome.cast.media.LoadRequest(info)
+		request.autoplay = true
+		return Object.assign(request, options)
 	}
 
-	const handleMediaLoad = () => {
+	const handleMediaLoad = async () => {
+		const session = getSession()
+		if (!session) {
+			statusMessage = 'Connect to a receiver with the cast button first.'
+			return
+		}
 		try {
-			const mediaInfo = JSON.parse(loadRequest)
-			console.log(mediaInfo)
-			sendMessage(ws, messageMediaLoad(mediaInfo))
+			const request = createLoadRequest(loadRequest)
+			console.log('[sender] load request', request)
+			statusMessage = 'Loading...'
+			const errorCode = await session.loadMedia(request)
+			statusMessage = errorCode ? `Load failed: ${errorCode}` : ''
 		} catch (e) {
 			console.error(e)
+			statusMessage = `Load failed: ${(e as Error)?.message ?? e}`
 		}
 	}
 
-	const handleMute = () => {
-		muted = !muted
-		sendMessage(ws, messageMute(volume, muted))
+	const handlePlayPause = (play: boolean) => {
+		if (player && controller && player.isPaused === play) controller.playOrPause()
 	}
 
-	const handleTimeUpdate = () => {
-		sendMessage(ws, messageSeek(currentTime))
+	const handleStop = () => controller?.stop()
+
+	const handleSeek = (time: number) => {
+		if (!player || !controller || !player.canSeek) return
+		player.currentTime = Math.min(Math.max(0, time), player.duration || Infinity)
+		controller.seek()
+	}
+
+	const handleQueueJump = (offset: 1 | -1) => {
+		const media = getSession()?.getMediaSession()
+		if (!media) return
+		const onError = (error: chrome.cast.Error) =>
+			(statusMessage = `Queue jump failed: ${error.code}`)
+		if (offset > 0) media.queueNext(() => {}, onError)
+		else media.queuePrev(() => {}, onError)
+	}
+
+	const handleMute = () => controller?.muteOrUnmute()
+
+	const handleVolume = () => {
+		if (!player || !controller) return
+		player.volumeLevel = volume / 100
+		controller.setVolumeLevel()
 	}
 
 	// ----------- Handle Load Request Template Change
@@ -129,70 +176,58 @@
 				break
 			case TemplateLoadRequestEnum.BASIC_QUEUE:
 				loadRequest = JSON.stringify(DEFAULT_QUEUED_MEDIA, null, 2)
-				console.log('new load request', loadRequest)
 				break
 		}
 	}
-
-	// ----------- Handle CAF Messages
-	$effect(() => {
-		if (browser) {
-		}
-	})
-
-	// ----------- Destroy the WebSocket if we kill this page.
-	onDestroy(() => {
-		if (ws) {
-			ws.close()
-		}
-	})
 </script>
 
-<svelte:head>
-	<script src="//www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1"></script>
-</svelte:head>
 <header>
 	<div>
-		<div style:color={isConnected ? 'var(--col-obj-success)' : 'white'}>Cast Locally</div>
-		<IconWrapper onClicked={handleSenderWarmup}
-			><WobblyCastIcon
-				--cast-connected={isConnected ? 'var(--col-obj-success)' : 'white'}
-			/></IconWrapper
-		>
+		<div style:color={isConnected ? 'var(--col-obj-success)' : 'white'}>
+			{isConnected ? `Casting to ${deviceName || 'receiver'}` : 'Cast Locally'}
+		</div>
+		<google-cast-launcher></google-cast-launcher>
 	</div>
 	<div>
-		<IconWrapper onClicked={handleMediaLoad}><ReelIcon /></IconWrapper>
+		<IconWrapper label="Send Load Request" onClicked={handleMediaLoad}><ReelIcon /></IconWrapper>
 		<div>Send Load Request</div>
 	</div>
 </header>
+
+{#if statusMessage}
+	<p class="status">{statusMessage}</p>
+{/if}
 
 <section class="mini-controller">
 	<h2>{@html title || '&nbsp;'}</h2>
 	<h3>{@html subtitle || '&nbsp;'}</h3>
 	<img src={images?.[0]?.url || 'idle-icon.png'} alt="thumb" />
 
-	<ProgressBar bind:currentTime {duration} {handleTimeUpdate} />
+	<ProgressBar {currentTime} {duration} handleTimeUpdate={handleSeek} />
 
 	<div class="controls">
 		<div class="playback">
-			<IconWrapper onClicked={() => sendMessage(ws, messagePlay())}><PlayIcon /></IconWrapper>
-			<IconWrapper onClicked={() => sendMessage(ws, messagePause())}><PauseIcon /></IconWrapper>
-			<IconWrapper onClicked={() => sendMessage(ws, messageStop())}><StopIcon /></IconWrapper>
-			<IconWrapper onClicked={() => sendMessage(ws, messageJumpItem(-1))}><PrevIcon /></IconWrapper>
-			<IconWrapper onClicked={() => sendMessage(ws, messageJumpItem(1))}><NextIcon /></IconWrapper>
+			<IconWrapper label="Play" onClicked={() => handlePlayPause(true)}><PlayIcon /></IconWrapper>
+			<IconWrapper label="Pause" onClicked={() => handlePlayPause(false)}><PauseIcon /></IconWrapper
+			>
+			<IconWrapper label="Stop" onClicked={handleStop}><StopIcon /></IconWrapper>
+			<IconWrapper label="Previous" onClicked={() => handleQueueJump(-1)}><PrevIcon /></IconWrapper>
+			<IconWrapper label="Next" onClicked={() => handleQueueJump(1)}><NextIcon /></IconWrapper>
 		</div>
 
 		<div class="seek">
-			<IconWrapper onClicked={() => sendMessage(ws, messageSkipBack())}
-				><SeekBack10Icon /></IconWrapper
+			<IconWrapper
+				label="Skip back 10 seconds"
+				onClicked={() => handleSeek(currentTime - SKIP_SECONDS)}><SeekBack10Icon /></IconWrapper
 			>
-			<IconWrapper onClicked={() => sendMessage(ws, messageSkipForward())}
-				><SeekForward10Icon /></IconWrapper
+			<IconWrapper
+				label="Skip forward 10 seconds"
+				onClicked={() => handleSeek(currentTime + SKIP_SECONDS)}><SeekForward10Icon /></IconWrapper
 			>
 		</div>
 
 		<div class="sound">
-			<IconWrapper onClicked={handleMute}>
+			<IconWrapper label={muted ? 'Unmute' : 'Mute'} onClicked={handleMute}>
 				{#if muted}
 					<MuteIcon />
 				{:else}
@@ -205,7 +240,7 @@
 				min={0}
 				max={100}
 				disabled={muted}
-				onchange={() => sendMessage(ws, messageVolume(volume))}
+				onchange={handleVolume}
 			/>
 		</div>
 	</div>
@@ -250,7 +285,22 @@
 		& > div {
 			display: flex;
 			align-items: center;
+			gap: 0.45rem;
 		}
+	}
+
+	google-cast-launcher {
+		display: block;
+		width: 40px;
+		height: 40px;
+		cursor: pointer;
+		--disconnected-color: white;
+		--connected-color: var(--col-obj-success);
+	}
+
+	.status {
+		text-align: center;
+		color: white;
 	}
 
 	.mini-controller {

@@ -1,149 +1,188 @@
 # Chromecast Emulator Demo 🚀
 
-This is an example on how to develop a Chromecast Emulator for your own project!
+This is an example of how to develop and test a Chromecast sender and receiver locally, without a
+Chromecast device!
+
+The sender page uses the real, unmodified [Cast Web Sender SDK](https://developers.google.com/cast/docs/web_sender),
+and the receiver page uses the real, unmodified [Cast Web Receiver SDK (CAF)](https://developers.google.com/cast/docs/web_receiver).
+Clicking the cast button on the sender opens the receiver in a popup window, and the two SDKs talk
+to each other as if the receiver ran on a Chromecast.
 
 ## Tech Stack
-### Frontend:
-* [Svelte 5/SvelteKit](https://svelte.dev/)
-    * Typescript
-    * Prettier
-* [Chromecast CAF](https://developers.google.com/cast/docs/overview)
-### Backend:
-* Nodejs + TSX
-* [Websockets](https://github.com/websockets/ws)
 
-## Resources
-* [ajhsu - chromecast-device-emulator](https://github.com/ajhsu/chromecast-device-emulator)
-  * [Example IPC Messages](https://github.com/ajhsu/chromecast-device-emulator/blob/master/examples/scenarios/BasicReceiverCAF-sample.json)
-* [Google Cast - Main Messages](https://developers.google.com/cast/docs/media/messages)
-* [Google Cast - Custom Web Receiver](https://developers.google.com/cast/docs/web_receiver/basic)
-* [Google Cast - Custom Web Sender](https://developers.google.com/cast/docs/web_sender)
-* [Google Cast - CaC Tool](https://casttool.appspot.com/cactool/)
-* [UI SVG Set](https://www.svgrepo.com/collection/solar-broken-line-icons)
-
-## How it Works
-The HTML Chromecast receiver is a static webpage that is provided to a Google Console where it is registered and assigned an Application ID. Because of this, we can exploit the page slightly, and trick our Chrome browser into allowing a Chromecast receiver page to think it's running on Chromecast hardware.
-
-This is done via the following:
-1. A polyfill to provide Chromecast relevant objects to the `window`.
-1. A custom Websocket Server that runs on the same port as the Chromecast receiver so that we can communicate between the local sender and local receiver using Chromecast recognized IPC messages.
-
-## How to Setup
-
-You can look at [/wss](./wss/README.md) to find out how to set up the WebSocketServer.
-
-You can run the Websocket server with the following command:
-```bash
-yarn serve
-```
-
-You can run the SvelteKit server with the following command:
-```bash
-yarn dev
-```
+- [Svelte 5/SvelteKit](https://svelte.dev/) with TypeScript and Prettier
+- [Google Cast SDKs](https://developers.google.com/cast/docs/overview)
 
 ## How to Use
-Open the web page by navigating to the provided localhost endpoint:
-```md
-http://localhost:<port>
-```
-From here, you can navigate to the `Sender` and `Receiver` pages.
 
-1. Open the Receiver page by navigating to:
-    ```md
-    http://localhost:<port>/receiver
-    ```
-1. Open the Sender page by navigating to:
-    ```md
-    http://localhost:<port>/sender
-    ```
-1. With both pages open, you can now start to use the local sender to send requests to the local receiver! Make sure you have the `wss` running by completing the [How to Setup](#how-to-setup) step above.
-1. You can connect to the receiver from the sender page by first pressing "Cast Locally" on the sender, and then "Send Load Request". You can read more about how the sender page works [here](#sender-page).
+Run the SvelteKit dev server from the repository root:
+
+```bash
+pnpm dev
+```
+
+1. Open the sender page at `http://localhost:<port>/sender`.
+1. Click the cast button at the top. The receiver page opens in a popup window, and the cast button
+   turns green once the session is connected. Allow pop-ups for localhost if Chrome blocks it.
+1. Pick a load request template, or write your own, and click "Send Load Request".
+1. If a "Click to allow media playback" bar shows up in the receiver window, click it once (see
+   [Troubleshooting](#troubleshooting)).
+1. Control playback from the mini controller.
 
 ### Sender Page
-The sender page acts as the controller and the load request initiator.
 
-#### Cast Locally
-At the top of the page, there is a button called "Cast Locally". This button is used to begin the connection to a local Chromecast receiver page. If you have an opened Chromecast receiver page connected to your Websocket Server, you can press this button to have the receiver page begin a session with your local sender.
+The sender page is a regular Cast Web Sender app:
 
-If you press this button and the button turns green, you have successfully connected to your receiver page. You'll also see your Chromecast receiver page reach an idle state with the loading spinner at the bottom disappearing.
-
-#### Send Load Request
-At the top of the page, there is a button called "Send Load Request". You can press the reel icon to send the load request to the Chromecast receiver page.
-
-The load request itself is built below, and as a default will provide Big Buck Bunny content that you can play around with its values, such as title and subtitle or image.
-
-You can also provide a custom load request if you have one in mind. You'll need to source your own for now.
-
-#### Mini Controller
-Acting as a mini-controller, the center of the page features a few common video controls, like a seek bar, play/pause controls, volume controls and a poster image plut title/subtitle display while content is playing.
+- The cast button is the SDK's `<google-cast-launcher>`, and `CastContext` is set up with the
+  [Default Media Receiver](https://developers.google.com/cast/docs/web_receiver#default_media_web_receiver)
+  application ID. The emulator opens the local receiver page for any application ID.
+- "Send Load Request" builds a `chrome.cast.media.LoadRequest` from the JSON in the editor (in the
+  format of a [`LOAD` message](https://developers.google.com/cast/docs/media/messages)) and sends
+  it with `CastSession#loadMedia()`.
+- The mini controller uses `RemotePlayer` and `RemotePlayerController`:
 
 Controls | &nbsp;
 -- | -- |
-**Metadata** | Includes the title/subtitle and poster image that can appear during content playback.
-**Seek Bar** | Includes the seeking bar, the current duration and the total duration of the content.
-**Basic Controls** | Includes the play/pause/stop, FF/RW controls.  Also includes prev/next items for queues.
-**Volume Controls** | Includes the mute/unmute toggle and the volume slider.
+**Metadata** | The title, subtitle and poster image of the current media.
+**Seek Bar** | The current time and duration of the media. Drag to seek.
+**Basic Controls** | Play, pause and stop, previous/next queue item, and skip 10 seconds back or forward.
+**Volume Controls** | Mute toggle and volume slider. These control the (emulated) device volume.
 
+Reloading the sender page rejoins the running session, just like with a real Chromecast.
 
 ### Receiver Page
-It's just a demo receiver page 😊
 
+A basic CAF receiver with a `<cast-media-player>`.
 
+## How it Works
 
-## Using a Custom Receiver
-The likeliness is you will want to be able to utilize the local sender page with a current Chromecast receiver solution. Good news is it should work great with any solution so long as the following changes to a receiver can be achieved for local development testing.
+In Chrome, the Cast Web Sender SDK uses the [Presentation API](https://w3c.github.io/presentation-api/)
+to talk to Cast devices: it starts a presentation of a `cast:<appId>` URL, and exchanges JSON
+messages with Chrome's Media Router over the resulting `PresentationConnection`. On the device,
+the receiver SDK talks to the Cast platform over a WebSocket to `ws://localhost:8008/v2/ipc`.
 
-### Basic Implementation
-With no changes, the local sender page will already work with your receiver! 😃
+The emulator replaces both ends with three scripts in [/static](./static):
 
-> Don't forget to supply your own custom `Load Request`! 
+- [`presentation-polyfill.js`](./static/presentation-polyfill.js) (sender and receiver): a
+  Presentation API implementation that presents a URL by opening it in a popup window, and
+  exchanges messages with it through `postMessage()`. The receiver window gets the incoming
+  connections through `navigator.presentation.receiver`.
+- [`cast-sender-emulator.js`](./static/cast-sender-emulator.js) (sender): maps `cast:<appId>`
+  presentation URLs to the receiver page, names presentations after their Cast session, and lets
+  the SDK rejoin a session after a reload.
+- [`cast-receiver-emulator.js`](./static/cast-receiver-emulator.js) (receiver): fakes the Cast
+  platform (`cast.__platform__` and the IPC WebSocket), and plays the part of Chrome's Media Router:
+  it translates the sender SDK's messages to the IPC messages CAF expects, and back.
 
-The basic implementation will not have the Chromecast UI overlaying the receiver, and it will not have seek bar synchronization. Keep reading to find out how to implement those!
+Nothing else needs to change in your sender or receiver code.
 
-### Adding UI
-To add the UI overlay to your Chromecast receiver page when running locally, you'll need to be able to add in an additional script to your receiver.
+## Using Your Own Sender and Receiver
 
-This script must be available **BEFORE** the Chromecast receiver script. You can try adding a `defer` to the Chromecast receiver script, if possible.
+### Sender
 
-#### Example Setup
+Load the polyfill and the sender emulator **before** the Cast Web Sender SDK, and point
+`data-receiver-url` at your receiver page:
+
 ```html
-<!-- Polyfill and framework need to be loaded in sync, local setup, and Receiver setup need duplication -->
-<script src="/platform-polyfill.js"></script>
-<script defer src="//www.gstatic.com/cast/sdk/libs/caf_receiver/v3/cast_receiver_framework.js"></script>
+<script src="/presentation-polyfill.js"></script>
+<script src="/cast-sender-emulator.js" data-receiver-url="http://localhost:8080/receiver.html"></script>
+<script src="https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1"></script>
 ```
 
-Once complete, the UI should load successfully! There is limited keyboard support with this UI in the case that you don't have the local sender page open:
-1. Arrow keys will seek 10 secs forward/backward.
-1. Enter key will play/pause toggle.
+To open a different receiver page per application ID, set `window.castEmulatorConfig` before
+loading `cast-sender-emulator.js`:
 
-
-### Adding Seek Synchronization
-The Websocket Server is capable of handling seeking synchronization by having the receiver broadcast updates to the Websocket more often. The following code can be provided in the receiver once the `PlayerManager` is available.
-
-```ts
-const castContext = cast.framework.CastReceiverContext.getInstance()
-castContext
-    .getPlayerManager()
-    .addEventListener(cast.framework.events.EventType.TIME_UPDATE, (_) => {
-        castContext.getPlayerManager().broadcastStatus(true)
-    })
+```html
+<script>
+	window.castEmulatorConfig = {
+		receivers: { ABCD1234: 'http://localhost:8080/receiver.html' },
+		receiverUrl: '/receiver' // for any other application ID
+	}
+</script>
 ```
 
-### Last Steps
-Make sure you have a way to disable any of the above custom work when you are testing a physical Chromecast device or it may cause unintended problems.
+### Receiver
 
+Load the polyfill and the receiver emulator **before** the Cast Web Receiver SDK:
 
-<img src="./static/idle-icon.png" height=120>
+```html
+<script src="/presentation-polyfill.js"></script>
+<script src="/cast-receiver-emulator.js"></script>
+<script src="https://www.gstatic.com/cast/sdk/libs/caf_receiver/v3/cast_receiver_framework.js"></script>
+```
+
+The receiver page can live on another origin than the sender page.
+
+Only load the emulator scripts during local development. They replace the browser's Presentation
+API and the receiver's platform connection, so casting to a real Chromecast won't work with them.
+
+When SvelteKit (or another framework) navigates on the client, scripts in `<svelte:head>` may run
+out of order. This demo loads them one by one with [`loadScript.ts`](./src/lib/loadScript.ts).
+
+### Debugging
+
+In the receiver window, `castReceiverEmulator.trace` holds the latest IPC messages between CAF and
+the emulated platform, and the messages to and from the sender. They are also logged with
+`console.debug()` (enable the "Verbose" log level in DevTools).
+
+## End-to-end Tests
+
+[`tests/cast.test.ts`](./tests/cast.test.ts) drives the sender and the receiver together with
+[Playwright](https://playwright.dev/): it opens the sender page, clicks the cast button, picks up
+the receiver popup with `page.waitForEvent('popup')`, sends a load request and pauses from the
+sender, and checks the result on both sides (the receiver's `<video>`, and the sender SDK's media
+session). Both pages use the real Cast SDKs, so the tests need access to `www.gstatic.com`. The
+media comes from [`tests/fixtures`](./tests/fixtures), served with `context.route()`.
+
+```bash
+pnpm exec playwright install chromium  # once
+pnpm test:e2e
+```
+
+Playwright starts the dev server on port 4173 and launches Chromium with
+`--autoplay-policy=no-user-gesture-required`, so the receiver plays without a click. Set
+`CHROMIUM_PATH` to use a Chromium that is already installed, and `CHROMIUM_ARGS` to pass extra
+command line flags.
+
+To test your own sender or receiver, write tests the same way: `page` is your sender, and the
+popup is your receiver. Use `context.route()` rather than `page.route()`, so it also covers the
+popup.
 
 ## Troubleshooting
-### Video metadata provided to the mini-controller, but video is not playing on the receiver
-This can happen when the receiver page does not have focus at the time of the video load. It will not be able to autoplay content if this happens.
-* You can first try to play the content by pressing the play button on the mini-controller.
-* Or you may need to open the Chrome devtools on the receiver page and type in the following console command:
-    `cast.framework.CastReceiverContext.getInstance().getPlayerManager().play()`
 
-### Physical Chromecast device not working after testing locally
-Make sure you terminate the Websocket service when you are testing a physical device just in case it is somewhow messing with your actual Chromecast Websocket messages.
+### Video loads on the receiver, but does not play
 
-Also make sure you don't have any lingering custom code that you may have set up in the [above steps](#last-steps).
+The receiver window opens without a user gesture of its own, so Chrome's
+[autoplay policy](https://developer.chrome.com/blog/autoplay/) may block it from playing media
+with sound. When that happens, the receiver emulator shows a "Click to allow media playback" bar at
+the bottom of the receiver window. Click it (or anywhere in the window) once, and the emulator
+starts the blocked media again.
+
+To skip this during development, start Chrome with `--autoplay-policy=no-user-gesture-required`.
+
+### Volume controls change the video volume
+
+A real Chromecast applies its device volume to the audio output. The emulator applies it to the
+receiver's `<audio>` and `<video>` elements instead, which overrides the receiver's own stream
+volume.
+
+### Known limitations
+
+- Only the sender page that opened the receiver window (and that page after a reload) can join
+  its session. Other tabs and other browsers can't.
+- While the receiver window covers the sender window, Chrome considers the sender page hidden and
+  throttles its timers.
+
+## Resources
+
+- [Presentation API](https://w3c.github.io/presentation-api/)
+- [Chromium's Cast Media Route Provider](https://source.chromium.org/chromium/chromium/src/+/main:chrome/browser/media/router/providers/cast/), which the receiver emulator mimics
+- [ajhsu - chromecast-device-emulator](https://github.com/ajhsu/chromecast-device-emulator)
+  - [Example IPC Messages](https://github.com/ajhsu/chromecast-device-emulator/blob/master/examples/scenarios/BasicReceiverCAF-sample.json)
+- [Google Cast - Main Messages](https://developers.google.com/cast/docs/media/messages)
+- [Google Cast - Custom Web Receiver](https://developers.google.com/cast/docs/web_receiver/basic)
+- [Google Cast - Custom Web Sender](https://developers.google.com/cast/docs/web_sender)
+- [Google Cast - CaC Tool](https://casttool.appspot.com/cactool/)
+- [UI SVG Set](https://www.svgrepo.com/collection/solar-broken-line-icons)
+
+<img src="./static/idle-icon.png" height=120>

@@ -1,48 +1,44 @@
 <script lang="ts">
-	import { browser } from '$app/environment'
+	import { loadScripts } from '$lib/loadScript'
+	import { getReceiverCast } from '$lib/receiverCast'
 	import type { CastReceiverContext } from 'chromecast-caf-receiver/cast.framework'
 	import type { LoadRequestData } from 'chromecast-caf-receiver/cast.framework.messages'
-	import { onDestroy } from 'svelte'
+	import { onDestroy, onMount, tick } from 'svelte'
 
-	let castContext: CastReceiverContext | null = $state(null)
+	const CAST_RECEIVER_SDK_URL =
+		'https://www.gstatic.com/cast/sdk/libs/caf_receiver/v3/cast_receiver_framework.js'
+
+	let castContext: CastReceiverContext | null = null
 	let castAvailable: boolean = $state(false)
 
-	// ----------- Wait for Cast SDK to be available on the browser page
-	$effect(() => {
-		const waitForCastAvailable = () =>
-			setTimeout(() => {
-				if (!browser) return
-				if (castAvailable) return
-				if (!!cast.framework) {
-					castAvailable = true
-				}
-
-				waitForCastAvailable()
-			}, 100)
-
-		waitForCastAvailable()
+	onMount(async () => {
+		// The emulator scripts must run before the receiver SDK, so it connects to the emulated platform.
+		await loadScripts([
+			'/presentation-polyfill.js',
+			'/cast-receiver-emulator.js',
+			CAST_RECEIVER_SDK_URL
+		])
+		castAvailable = true
+		// Render <cast-media-player> before starting, so the SDK plays media in it.
+		await tick()
+		startReceiver()
 	})
 
-	// ----------- Start the Chromecast Session once we have the cast object available on the window
-	$effect(() => {
-		if (castAvailable) {
-			castContext = cast.framework.CastReceiverContext.getInstance()
-			const options = new cast.framework.CastReceiverOptions()
-			options.shakaVersion = '4.9.2'
-			options.useShakaForHls = true
-			castContext!.start(options)
+	// ----------- Start the Chromecast Session once the receiver SDK is loaded
+	const startReceiver = () => {
+		const { framework } = getReceiverCast()
+		const context = framework.CastReceiverContext.getInstance()
+		castContext = context
+		const options = new framework.CastReceiverOptions()
+		options.shakaVersion = '4.9.2'
+		options.useShakaForHls = true
 
-			castContext
-				.getPlayerManager()
-				.setMessageInterceptor(cast.framework.messages.MessageType.LOAD, updateLoadRequest)
+		context
+			.getPlayerManager()
+			.setMessageInterceptor(framework.messages.MessageType.LOAD, updateLoadRequest)
 
-			castContext
-				.getPlayerManager()
-				.addEventListener(cast.framework.events.EventType.TIME_UPDATE, (_) => {
-					castContext?.getPlayerManager().broadcastStatus(true)
-				})
-		}
-	})
+		context.start(options)
+	}
 
 	// ----------- Update the Load Requests
 	const updateLoadRequest = (loadRequest: LoadRequestData) => {
@@ -52,20 +48,10 @@
 
 	// ----------- Destroy the Chromecast Session whenever we kill this page.
 	onDestroy(() => {
-		if (castContext) {
-			castContext.stop()
-		}
+		castContext?.stop()
 	})
 </script>
 
-<svelte:head>
-	<!-- Polyfill and framework need to be loaded in sync, local setup, and Receiver setup need duplication -->
-	<script src="/platform-polyfill.js"></script>
-	<script
-		defer
-		src="//www.gstatic.com/cast/sdk/libs/caf_receiver/v3/cast_receiver_framework.js"
-	></script>
-</svelte:head>
 <div class="chromecast-receiver">
 	{#if castAvailable}
 		<cast-media-player></cast-media-player>
