@@ -1,34 +1,47 @@
 {
-	"name": "chromecast-emulator",
-	"version": "0.0.1",
+	"name": "@mattiasbuelens/chromecast-emulator",
+	"version": "0.1.0",
+	"description": "Run unmodified Chromecast sender and receiver apps in your browser, without a Chromecast device.",
+	"keywords": [
+		"chromecast",
+		"google-cast",
+		"cast",
+		"emulator",
+		"presentation-api",
+		"polyfill"
+	],
+	"homepage": "https://github.com/MattiasBuelens/chromecast-emulator-demo/tree/main/emulator#readme",
+	"bugs": {
+		"url": "https://github.com/MattiasBuelens/chromecast-emulator-demo/issues"
+	},
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/MattiasBuelens/chromecast-emulator-demo.git",
+		"directory": "emulator"
+	},
+	"license": "MIT",
 	"type": "module",
+	"exports": {
+		"./presentation-polyfill.js": "./dist/presentation-polyfill.js",
+		"./presentation-polyfill.min.js": "./dist/presentation-polyfill.min.js",
+		"./cast-sender-emulator.js": "./dist/cast-sender-emulator.js",
+		"./cast-sender-emulator.min.js": "./dist/cast-sender-emulator.min.js",
+		"./cast-receiver-emulator.js": "./dist/cast-receiver-emulator.js",
+		"./cast-receiver-emulator.min.js": "./dist/cast-receiver-emulator.min.js",
+		"./package.json": "./package.json"
+	},
+	"files": [
+		"dist"
+	],
+	"sideEffects": true,
 	"scripts": {
-		"emulator:dev": "vite dev",
-		"test:e2e": "playwright test"
+		"build": "node build.js",
+		"prepack": "node build.js"
 	},
 	"devDependencies": {
-		"@playwright/test": "1.56.1",
-		"@sveltejs/adapter-auto": "^3.0.0",
-		"@sveltejs/kit": "^2.0.0",
-		"@sveltejs/vite-plugin-svelte": "^4.0.0",
-		"@types/chromecast-caf-receiver": "^6.0.17",
-		"@types/chromecast-caf-sender": "^1.0.11",
-		"@types/eslint": "^9.6.0",
-		"@types/node": "^22.0.0",
-		"eslint": "^9.7.0",
-		"eslint-config-prettier": "^9.1.0",
-		"eslint-plugin-svelte": "^2.36.0",
-		"globals": "^15.0.0",
-		"prettier": "^3.3.2",
-		"prettier-plugin-svelte": "^3.2.6",
-		"svelte": "^5.0.0",
-		"svelte-check": "^4.0.0",
-		"typescript": "^5.0.0",
-		"typescript-eslint": "^8.0.0",
-		"vite": "^5.0.3"
+		"esbuild": "^0.25.0"
 	},
-	"dependencies": {
-		"sass": "^1.80.6"
-	},
-	"license": "MIT"
+	"publishConfig": {
+		"access": "public"
+	}
 }

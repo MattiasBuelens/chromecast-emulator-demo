@@ -1,11 +1,11 @@
 {
-	"name": "chromecast-emulator-demo",
-	"version": "0.0.2",
+	"name": "chromecast-emulator-workspace",
+	"private": true,
 	"type": "module",
 	"scripts": {
-		"dev": "pnpm run -r emulator:dev",
-		"extension": "pnpm run -r extension:build",
-		"test:e2e": "pnpm run -r test:e2e"
+		"build": "pnpm run -r build",
+		"dev": "pnpm --filter chromecast-emulator-demo dev",
+		"test:e2e": "pnpm --filter chromecast-emulator-demo test:e2e"
 	},
 	"license": "MIT",
 	"packageManager": "pnpm@9.15.5+sha512.845196026aab1cc3f098a0474b64dfbab2afe7a1b4e91dd86895d8e4aa32a7a6d03049e2d0ad770bbe4de023a7122fb68c1a1d6e0d033c7076085f9d5d4800d4"

@@ -14,6 +14,8 @@
 	import SoundIcon from '$lib/icons/SoundIcon.svelte'
 	import StopIcon from '$lib/icons/StopIcon.svelte'
 	import { loadScripts } from '$lib/loadScript'
+	import presentationPolyfillUrl from '@mattiasbuelens/chromecast-emulator/presentation-polyfill.js?url'
+	import castSenderEmulatorUrl from '@mattiasbuelens/chromecast-emulator/cast-sender-emulator.js?url'
 	import { onDestroy, onMount } from 'svelte'
 
 	// The receiver page that the emulator opens for every receiver application ID.
@@ -91,8 +93,8 @@
 		}
 		// The emulator scripts must run before the Cast SDK, so it picks up the Presentation API polyfill.
 		await loadScripts([
-			'/presentation-polyfill.js',
-			['/cast-sender-emulator.js', { receiverUrl: RECEIVER_URL }],
+			presentationPolyfillUrl,
+			[castSenderEmulatorUrl, { receiverUrl: RECEIVER_URL }],
 			CAST_SENDER_SDK_URL
 		])
 	})

@@ -1,5 +1,7 @@
 <script lang="ts">
 	import { loadScripts } from '$lib/loadScript'
+	import castReceiverEmulatorUrl from '@mattiasbuelens/chromecast-emulator/cast-receiver-emulator.js?url'
+	import presentationPolyfillUrl from '@mattiasbuelens/chromecast-emulator/presentation-polyfill.js?url'
 	import { getReceiverCast } from '$lib/receiverCast'
 	import type { CastReceiverContext } from 'chromecast-caf-receiver/cast.framework'
 	import type { LoadRequestData } from 'chromecast-caf-receiver/cast.framework.messages'
@@ -14,8 +16,8 @@
 	onMount(async () => {
 		// The emulator scripts must run before the receiver SDK, so it connects to the emulated platform.
 		await loadScripts([
-			'/presentation-polyfill.js',
-			'/cast-receiver-emulator.js',
+			presentationPolyfillUrl,
+			castReceiverEmulatorUrl,
 			CAST_RECEIVER_SDK_URL
 		])
 		castAvailable = true
