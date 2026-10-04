@@ -22,10 +22,22 @@
 	"license": "MIT",
 	"type": "module",
 	"exports": {
+		"./presentation-polyfill": {
+			"production": "./dist/presentation-polyfill.min.js",
+			"default": "./dist/presentation-polyfill.js"
+		},
 		"./presentation-polyfill.js": "./dist/presentation-polyfill.js",
 		"./presentation-polyfill.min.js": "./dist/presentation-polyfill.min.js",
+		"./cast-sender-emulator": {
+			"production": "./dist/cast-sender-emulator.min.js",
+			"default": "./dist/cast-sender-emulator.js"
+		},
 		"./cast-sender-emulator.js": "./dist/cast-sender-emulator.js",
 		"./cast-sender-emulator.min.js": "./dist/cast-sender-emulator.min.js",
+		"./cast-receiver-emulator": {
+			"production": "./dist/cast-receiver-emulator.min.js",
+			"default": "./dist/cast-receiver-emulator.js"
+		},
 		"./cast-receiver-emulator.js": "./dist/cast-receiver-emulator.js",
 		"./cast-receiver-emulator.min.js": "./dist/cast-receiver-emulator.min.js",
 		"./package.json": "./package.json"

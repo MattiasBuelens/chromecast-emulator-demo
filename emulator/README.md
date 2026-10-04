@@ -25,8 +25,21 @@ Serve them from `node_modules/@mattiasbuelens/chromecast-emulator/dist/` with yo
 server, or load them from a CDN such as
 `https://cdn.jsdelivr.net/npm/@mattiasbuelens/chromecast-emulator/dist/presentation-polyfill.js`.
 With a bundler like Vite, you can also get their URLs by importing them, for example
-`import polyfillUrl from '@mattiasbuelens/chromecast-emulator/presentation-polyfill.js?url'`
+`import polyfillUrl from '@mattiasbuelens/chromecast-emulator/presentation-polyfill?url'`
 (see the [demo](https://github.com/MattiasBuelens/chromecast-emulator-demo/blob/main/demo/src/routes/sender/+page.svelte)).
+
+### Exports
+
+Each script has three entry points, for example for `presentation-polyfill`:
+
+| Import | Resolves to |
+| -- | -- |
+| `@mattiasbuelens/chromecast-emulator/presentation-polyfill` | The minified script under the `production` [export condition](https://nodejs.org/api/packages.html#community-conditions-definitions), the readable script otherwise |
+| `@mattiasbuelens/chromecast-emulator/presentation-polyfill.js` | Always the readable script |
+| `@mattiasbuelens/chromecast-emulator/presentation-polyfill.min.js` | Always the minified script |
+
+Vite and webpack set the `production` condition in production builds. For other tools, pass it
+in their conditions option (for example esbuild's `--conditions=production`).
 
 ## Usage
 

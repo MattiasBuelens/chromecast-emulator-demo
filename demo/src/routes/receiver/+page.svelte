@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { loadScripts } from '$lib/loadScript'
-	import castReceiverEmulatorUrl from '@mattiasbuelens/chromecast-emulator/cast-receiver-emulator.js?url'
-	import presentationPolyfillUrl from '@mattiasbuelens/chromecast-emulator/presentation-polyfill.js?url'
+	import castReceiverEmulatorUrl from '@mattiasbuelens/chromecast-emulator/cast-receiver-emulator?url'
+	import presentationPolyfillUrl from '@mattiasbuelens/chromecast-emulator/presentation-polyfill?url'
 	import { getReceiverCast } from '$lib/receiverCast'
 	import type { CastReceiverContext } from 'chromecast-caf-receiver/cast.framework'
 	import type { LoadRequestData } from 'chromecast-caf-receiver/cast.framework.messages'

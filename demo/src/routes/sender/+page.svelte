@@ -14,8 +14,8 @@
 	import SoundIcon from '$lib/icons/SoundIcon.svelte'
 	import StopIcon from '$lib/icons/StopIcon.svelte'
 	import { loadScripts } from '$lib/loadScript'
-	import presentationPolyfillUrl from '@mattiasbuelens/chromecast-emulator/presentation-polyfill.js?url'
-	import castSenderEmulatorUrl from '@mattiasbuelens/chromecast-emulator/cast-sender-emulator.js?url'
+	import presentationPolyfillUrl from '@mattiasbuelens/chromecast-emulator/presentation-polyfill?url'
+	import castSenderEmulatorUrl from '@mattiasbuelens/chromecast-emulator/cast-sender-emulator?url'
 	import { onDestroy, onMount } from 'svelte'
 
 	// The receiver page that the emulator opens for every receiver application ID.
